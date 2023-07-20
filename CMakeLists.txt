@@ -48,6 +48,7 @@ set(component_name bridge)
 add_library(${component_name}
   SHARED
   src/bridge/bridge.cpp
+  src/bridge/bridge_params.cpp
   src/ekf.cpp
 )
 target_include_directories(${component_name}
@@ -83,9 +84,13 @@ install(
   DIRECTORY include/
   DESTINATION include
 )
-# install(
-#   DIRECTORY launch
-#   DESTINATION share/${PROJECT_NAME}
-# )
+
+################################################################################
+# install shared resources
+################################################################################
+install(
+  DIRECTORY launch config
+  DESTINATION share/${PROJECT_NAME}
+)
 
 ament_package()

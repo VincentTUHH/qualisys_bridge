@@ -15,12 +15,18 @@
 
 RCLCPP_COMPONENTS_REGISTER_NODE(qualisys_bridge::Bridge)
 
-static constexpr double kMaxAcceleration = 50.0;
+static constexpr double kMaxAcceleration = 10.0;
 static constexpr double kFrameInterval = 0.01;
+static constexpr double kPi = 3.141592653589793238463;
+static const Eigen::Quaterniond q_ned_enu{
+    hippo_common::tf2_utils::EulerToQuaternion(kPi, 0.0, kPi / 2.0)};
+static const Eigen::Quaterniond q_flu_frd{
+    hippo_common::tf2_utils::EulerToQuaternion(kPi, 0.0, 0.0)};
 
 namespace qualisys_bridge {
 Bridge::Bridge(rclcpp::NodeOptions const &_options)
     : Node("apriltag_simple", _options), ekf_() {
+  DeclareParams();
   tf_buffer_ = std::make_unique<tf2_ros::Buffer>(get_clock());
   tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
   process_noise_.topLeftCorner<6, 6>() = 0.5 * Ekf::Matrix6d::Identity() *
@@ -32,7 +38,7 @@ Bridge::Bridge(rclcpp::NodeOptions const &_options)
       10.0 * Eigen::Matrix3d::Identity() * kFrameInterval * kMaxAcceleration;
   process_noise_ *= process_noise_;
 
-  measurement_noise_ = Ekf::Matrix6d::Identity() * 1e-1;
+  measurement_noise_ = Ekf::Matrix6d::Identity() * 5e-3;
   measurement_noise_ *= measurement_noise_;
 
   ekf_.Init(process_noise_, measurement_noise_, 100);
@@ -60,6 +66,10 @@ Bridge::Bridge(rclcpp::NodeOptions const &_options)
   visual_odometry_pub_ = create_publisher<px4_msgs::msg::VehicleOdometry>(
       "fmu/in/vehicle_visual_odometry", px4_qos);
 
+  vehicle_velocity_inertial_debug_pub_ =
+      create_publisher<geometry_msgs::msg::Vector3Stamped>(
+          "debug/velocity_inertial", rclcpp::SystemDefaultsQoS());
+
   px4_vehicle_odometry_sub_ =
       create_subscription<px4_msgs::msg::VehicleOdometry>(
           "fmu/out/vehicle_odometry", px4_qos,
@@ -72,6 +82,10 @@ Bridge::Bridge(rclcpp::NodeOptions const &_options)
   vehicle_odom_update_timer_ =
       rclcpp::create_timer(this, get_clock(), std::chrono::milliseconds(20),
                            std::bind(&Bridge::OnUpdateOdometry, this));
+
+  mocap_timeout_timer_ =
+      rclcpp::create_timer(this, get_clock(), std::chrono::milliseconds(500),
+                           std::bind(&Bridge::OnMoCapTimeout, this));
 }
 
 void Bridge::OnOdometry(px4_msgs::msg::VehicleOdometry::ConstSharedPtr _msg) {
@@ -85,6 +99,12 @@ void Bridge::OnOdometry(px4_msgs::msg::VehicleOdometry::ConstSharedPtr _msg) {
   orientation_px4_.x() = _msg->q.at(1);
   orientation_px4_.y() = _msg->q.at(2);
   orientation_px4_.z() = _msg->q.at(3);
+}
+
+void Bridge::OnMoCapTimeout() {
+  valid_mocap_stream_ = false;
+  RCLCPP_ERROR(this->get_logger(),
+               "Timeout for MoCap data, stop publishing states");
 }
 
 void Bridge::HandlePacket(CRTPacket *_packet) {
@@ -106,7 +126,7 @@ void Bridge::HandlePacket(CRTPacket *_packet) {
   t_prev_frame_qtm = t_packet;
   for (unsigned int i = 0; i < _packet->Get6DOFBodyCount(); ++i) {
     std::string name{rt_protocol_.Get6DOFBodyName(i)};
-    if (name != params_.name) {
+    if (name != params_.body_name) {
       continue;
     }
     if (!_packet->Get6DOFBody(i, x, y, z, R)) {
@@ -126,19 +146,12 @@ void Bridge::HandlePacket(CRTPacket *_packet) {
       }
       continue;
     }
+    mocap_timeout_timer_->reset();
     lost_counter = 0;
     Eigen::Matrix<float, 3, 3, Eigen::ColMajor> R_mat(R);
     Eigen::Quaterniond orientation_measurement{R_mat.cast<double>()};
     Eigen::Vector3d position_measurement{x / 1000.0, y / 1000.0, z / 1000.0};
-    position_measurement += Eigen::Vector3d{1.2, 1.8, -1.3};
-
-    geometry_msgs::msg::PoseStamped pose;
-    pose.header.stamp = now();
-    pose.header.frame_id = hippo_common::tf2_utils::frame_id::InertialFrame();
-    hippo_common::convert::EigenToRos(ekf_.GetPosition(), pose.pose.position);
-    hippo_common::convert::EigenToRos(ekf_.GetOrientation(),
-                                      pose.pose.orientation);
-    PublishVisualOdometry(pose);
+    position_measurement += Eigen::Vector3d{0.0, 0.0, 0.0};
 
     double time = t_start_frame_ros_ + (t_packet - t_start_frame_qtm_);
 
@@ -149,6 +162,15 @@ void Bridge::HandlePacket(CRTPacket *_packet) {
     }
     ekf_.Predict(time);
     ekf_.Update(orientation_measurement, position_measurement);
+
+    geometry_msgs::msg::PoseStamped pose;
+    pose.header.stamp = now();
+    pose.header.frame_id = hippo_common::tf2_utils::frame_id::InertialFrame();
+    hippo_common::convert::EigenToRos(ekf_.GetPosition(), pose.pose.position);
+    hippo_common::convert::EigenToRos(ekf_.GetOrientation(),
+                                      pose.pose.orientation);
+    // PublishVisualOdometry(pose);
+    PublishVisualOdometry();
     PublishOdometry();
     PublishAcceleration();
     PublishNaive(position_measurement, orientation_measurement, t_packet);
@@ -279,15 +301,22 @@ void Bridge::OnUpdate() {
 }
 
 bool Bridge::Connect() {
-  if (!rt_protocol_.Connect(server_address_.c_str(), base_port_, &udp_port_,
+  if (!rt_protocol_.Connect(params_.server_address.c_str(), base_port_, &udp_port_,
                             major_version_, minor_version_, big_endian_)) {
-    RCLCPP_ERROR(get_logger(), "Failed to connect!");
+    RCLCPP_ERROR(get_logger(), "Failed to connect: %s",
+                 rt_protocol_.GetErrorString());
     return false;
   }
   return true;
 }
 
 void Bridge::OnUpdateOdometry() {
+  if (!valid_mocap_stream_) {
+    RCLCPP_ERROR(this->get_logger(),
+                 "Timeout of Mocap data, stopped publishing");
+    return;
+  }
+
   if (!px4_odometry_updated_) {
     RCLCPP_ERROR_THROTTLE(
         get_logger(), *get_clock(), 2000,
@@ -304,32 +333,30 @@ void Bridge::OnUpdateOdometry() {
   hippo_common::convert::EigenToRos(orientation_px4_, pose.pose.orientation);
   pose.pose = hippo_common::tf2_utils::PosePx4ToRos(pose.pose);
 
-  geometry_msgs::msg::Vector3Stamped velocity;
-  velocity.header.stamp = stamp;
-  velocity.header.frame_id =
-      hippo_common::tf2_utils::frame_id::InertialFramePX4();
-  hippo_common::convert::EigenToRos(velocity_px4_, velocity.vector);
+  // velocity in inertial coordinate system in Ros
+  Eigen::Vector3d velocity_ros = q_ned_enu.inverse() * velocity_px4_;
+  geometry_msgs::msg::Vector3Stamped velocity_inertial_msg;
+  velocity_inertial_msg.header.stamp = stamp;
+  velocity_inertial_msg.header.frame_id =
+      hippo_common::tf2_utils::frame_id::InertialFrame();
+  hippo_common::convert::EigenToRos(velocity_ros, velocity_inertial_msg.vector);
+  vehicle_velocity_inertial_debug_pub_->publish(velocity_inertial_msg);
 
-  try {
-    velocity = tf_buffer_->transform(
-        velocity, hippo_common::tf2_utils::frame_id::InertialFrame());
-  } catch (const tf2::TransformException &e) {
-    RCLCPP_ERROR(get_logger(), "Could not lookup transform. %s", e.what());
-    return;
-  }
+  // transform velocity from inertial coordinate system in ros to body frame
+  velocity_ros =
+      (q_ned_enu.inverse() * orientation_px4_ * q_flu_frd.inverse()).inverse() *
+      velocity_ros;
 
-  geometry_msgs::msg::Vector3 angular_velocity;
-  angular_velocity.x = body_rates_px4_.x();
-  angular_velocity.y = -body_rates_px4_.y();
-  angular_velocity.z = -body_rates_px4_.z();
+  Eigen::Vector3d angular_velocity_ros = q_flu_frd * body_rates_px4_;
 
   nav_msgs::msg::Odometry odometry;
   odometry.header.stamp = stamp;
   odometry.header.frame_id = hippo_common::tf2_utils::frame_id::InertialFrame();
   odometry.child_frame_id = hippo_common::tf2_utils::frame_id::BaseLink(this);
   odometry.pose.pose = pose.pose;
-  odometry.twist.twist.linear = velocity.vector;
-  odometry.twist.twist.angular = angular_velocity;
+  hippo_common::convert::EigenToRos(velocity_ros, odometry.twist.twist.linear);
+  hippo_common::convert::EigenToRos(angular_velocity_ros,
+                                    odometry.twist.twist.angular);
   vehicle_odometry_pub_->publish(odometry);
 }
 
@@ -359,6 +386,96 @@ void Bridge::PublishVisualOdometry(
   visual_odometry.angular_velocity = {NAN, NAN, NAN};
 
   visual_odometry_pub_->publish(visual_odometry);
+}
+
+void Bridge::PublishVisualOdometry() {
+  px4_msgs::msg::VehicleOdometry visual_odometry;
+  visual_odometry.pose_frame = px4_msgs::msg::VehicleOdometry::POSE_FRAME_NED;
+  visual_odometry.velocity_frame =
+      px4_msgs::msg::VehicleOdometry::VELOCITY_FRAME_NED;
+  visual_odometry.timestamp = now().nanoseconds() * 1e-3;
+  visual_odometry.timestamp_sample = now().nanoseconds() * 1e-3;
+  geometry_msgs::msg::Pose ros_pose;
+  hippo_common::convert::EigenToRos(ekf_.GetPosition(), ros_pose.position);
+
+  hippo_common::convert::EigenToRos(ekf_.GetOrientation(),
+                                    ros_pose.orientation);
+  geometry_msgs::msg::Pose px4_pose =
+      hippo_common::tf2_utils::PoseRosToPx4(ros_pose);
+  visual_odometry.position = {(float)px4_pose.position.x,
+                              (float)px4_pose.position.y,
+                              (float)px4_pose.position.z};
+  visual_odometry.q = {
+      (float)px4_pose.orientation.w, (float)px4_pose.orientation.x,
+      (float)px4_pose.orientation.y, (float)px4_pose.orientation.z};
+
+  Eigen::Vector3d velocity_inertial_px4 = q_ned_enu * ekf_.GetLinearVelocity();
+  Eigen::Vector3d angular_velocity_local_px4 =
+      q_flu_frd.inverse() * ekf_.GetOrientation().inverse() *
+      Eigen::Vector3d(ekf_.GetAngularVelocity());
+
+  visual_odometry.velocity = {(float)velocity_inertial_px4.x(),
+                              (float)velocity_inertial_px4.y(),
+                              (float)velocity_inertial_px4.z()};
+  visual_odometry.angular_velocity = {(float)angular_velocity_local_px4.x(),
+                                      (float)angular_velocity_local_px4.y(),
+                                      (float)angular_velocity_local_px4.z()};
+
+  Eigen::Matrix<double, 3, 3> position_covariance;
+  Eigen::Matrix<double, 3, 3> orientation_covariance;
+  Eigen::Matrix<double, 3, 3> velocity_covariance;
+
+  Eigen::Matrix<double, 15, 15> covariance = ekf_.GetStateCovariance();
+
+  position_covariance = covariance.block<3, 3>(3, 3);
+  orientation_covariance = covariance.block<3, 3>(0, 0);
+  velocity_covariance = covariance.block<3, 3>(9, 9);
+
+  position_covariance = q_ned_enu.toRotationMatrix() * position_covariance *
+                        q_ned_enu.inverse().toRotationMatrix();
+  velocity_covariance = q_ned_enu.toRotationMatrix() * velocity_covariance *
+                        q_ned_enu.inverse().toRotationMatrix();
+  // todo: properly transform orientation noise from ROS coordinate systems to
+  // px4 coordinate systems
+  for (int i = 0; i < 3; i++) {  // rows
+    visual_odometry.position_variance[i] = (float)position_covariance(i, i);
+    visual_odometry.orientation_variance[i] =
+        (float)orientation_covariance(i, i);
+    visual_odometry.velocity_variance[i] = (float)velocity_covariance(i, i);
+  }
+  visual_odometry_pub_->publish(visual_odometry);
+}
+
+nav_msgs::msg::Odometry Bridge::getEKFOdometryMsg() {
+  nav_msgs::msg::Odometry msg;
+  msg.header.stamp = now();
+  msg.header.frame_id = hippo_common::tf2_utils::frame_id::InertialFrame();
+  msg.child_frame_id = "base_link";
+  hippo_common::convert::EigenToRos(ekf_.GetPosition(), msg.pose.pose.position);
+  hippo_common::convert::EigenToRos(ekf_.GetOrientation(),
+                                    msg.pose.pose.orientation);
+  hippo_common::convert::EigenToRos(ekf_.GetLinearVelocity(),
+                                    msg.twist.twist.linear);
+  hippo_common::convert::EigenToRos(
+      ekf_.GetOrientation().inverse() * ekf_.GetAngularVelocity(),
+      msg.twist.twist.angular);
+  Eigen::Map<Eigen::Matrix<double, 6, 6, Eigen::RowMajor>> pose_covariance(
+      msg.pose.covariance.begin());
+  Eigen::Map<Eigen::Matrix<double, 6, 6, Eigen::RowMajor>> twist_covariance(
+      msg.twist.covariance.begin());
+
+  Eigen::Matrix<double, 15, 15> covariance = ekf_.GetStateCovariance();
+
+  pose_covariance.topLeftCorner<3, 3>() = covariance.block<3, 3>(3, 3);
+  pose_covariance.topRightCorner<3, 3>() = covariance.block<3, 3>(3, 0);
+  pose_covariance.bottomLeftCorner<3, 3>() = covariance.block<3, 3>(0, 3);
+  pose_covariance.bottomRightCorner<3, 3>() = covariance.block<3, 3>(0, 0);
+
+  twist_covariance.topLeftCorner<3, 3>() = covariance.block<3, 3>(9, 9);
+  twist_covariance.topRightCorner<3, 3>() = covariance.block<3, 3>(9, 6);
+  twist_covariance.bottomLeftCorner<3, 3>() = covariance.block<3, 3>(6, 9);
+  twist_covariance.bottomRightCorner<3, 3>() = covariance.block<3, 3>(6, 6);
+  return msg;
 }
 
 }  // namespace qualisys_bridge

@@ -18,19 +18,26 @@ class Bridge : public rclcpp::Node {
 
  private:
   struct Params {
-    std::string name{"uuv00"};
+    std::string body_name{"uvms"};
+    std::string server_address{"192.18.0.161"};
   } params_;
+  void DeclareParams();
   void OnUpdate();
   bool Connect();
   void OnUpdateOdometry();
   void OnOdometry(px4_msgs::msg::VehicleOdometry::ConstSharedPtr _msg);
+  void OnMoCapTimeout();
   void HandlePacket(CRTPacket *_packet);
+  void PublishOdometry(const nav_msgs::msg::Odometry &_odometry);
   void PublishOdometry();
   void PublishNaive(const Eigen::Vector3d &_position_measurement,
                     const Eigen::Quaterniond &_orientation_measurement,
                     double _time);
   void PublishAcceleration();
   void PublishVisualOdometry(const geometry_msgs::msg::PoseStamped _pose);
+  void PublishVisualOdometry();
+  nav_msgs::msg::Odometry getEKFOdometryMsg();
+
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr
       ground_truth_odometry_pub_;
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr vehicle_odometry_pub_;
@@ -40,11 +47,14 @@ class Bridge : public rclcpp::Node {
   rclcpp::Publisher<geometry_msgs::msg::Vector3Stamped>::SharedPtr accel_pub_;
   rclcpp::Publisher<px4_msgs::msg::VehicleOdometry>::SharedPtr
       visual_odometry_pub_;
+  rclcpp::Publisher<geometry_msgs::msg::Vector3Stamped>::SharedPtr
+      vehicle_velocity_inertial_debug_pub_;
 
   rclcpp::Subscription<px4_msgs::msg::VehicleOdometry>::SharedPtr
       px4_vehicle_odometry_sub_;
   rclcpp::TimerBase::SharedPtr update_timer_;
   rclcpp::TimerBase::SharedPtr vehicle_odom_update_timer_;
+  rclcpp::TimerBase::SharedPtr mocap_timeout_timer_;
   CRTProtocol rt_protocol_;
 
   std::string server_address_{"192.168.0.161"};
@@ -66,6 +76,7 @@ class Bridge : public rclcpp::Node {
   Eigen::Vector3d velocity_px4_;
   Eigen::Vector3d body_rates_px4_;
   bool px4_odometry_updated_{false};
+  bool valid_mocap_stream_{true};
 
   std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
   std::unique_ptr<tf2_ros::Buffer> tf_buffer_;

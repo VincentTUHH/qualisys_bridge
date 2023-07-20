@@ -1,0 +1,4 @@
+/**: # wildcard for the node name
+  ros__parameters:
+    body_name: 'uuv02'
+    server_address: '192.168.0.161'
