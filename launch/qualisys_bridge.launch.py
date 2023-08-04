@@ -19,7 +19,8 @@ def add_node(launch_description: LaunchDescription):
     action = Node(package='qualisys_bridge',
                   executable='bridge_node',
                   name='qualisys',
-                  namespace=LaunchConfiguration('vehicle_name'))
+                  namespace=LaunchConfiguration('vehicle_name'),
+                  parameters=[LaunchConfiguration('bridge_config_file')])
     launch_description.add_action(action)
 
 
