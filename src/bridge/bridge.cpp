@@ -25,7 +25,7 @@ static const Eigen::Quaterniond q_flu_frd{
 
 namespace qualisys_bridge {
 Bridge::Bridge(rclcpp::NodeOptions const &_options)
-    : Node("apriltag_simple", _options), ekf_() {
+    : Node("mocap", _options), ekf_() {
   DeclareParams();
   tf_buffer_ = std::make_unique<tf2_ros::Buffer>(get_clock());
   tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
