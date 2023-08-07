@@ -18,8 +18,9 @@ class Bridge : public rclcpp::Node {
 
  private:
   struct Params {
-    std::string body_name{"uvms"};
-    std::string server_address{"192.18.0.161"};
+    std::string body_name;
+    std::string server_address;
+    bool latch_timeout;
   } params_;
   void DeclareParams();
   void OnUpdate();

@@ -12,6 +12,7 @@ void Bridge::DeclareParams() {
   std::string name;
   DECLARE_PARAM(body_name);
   DECLARE_PARAM(server_address);
+  DECLARE_PARAM(latch_timeout);
 }
 
 }  // namespace qualisys_bridge
