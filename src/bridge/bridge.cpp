@@ -147,6 +147,9 @@ void Bridge::HandlePacket(CRTPacket *_packet) {
       continue;
     }
     mocap_timeout_timer_->reset();
+    // only set set to true if we do not latch the timeout state. if latched, we
+    // should not recover from a timeout state.
+    valid_mocap_stream_ = params_.latch_timeout ? valid_mocap_stream_ : true;
     lost_counter = 0;
     Eigen::Matrix<float, 3, 3, Eigen::ColMajor> R_mat(R);
     Eigen::Quaterniond orientation_measurement{R_mat.cast<double>()};
@@ -301,8 +304,9 @@ void Bridge::OnUpdate() {
 }
 
 bool Bridge::Connect() {
-  if (!rt_protocol_.Connect(params_.server_address.c_str(), base_port_, &udp_port_,
-                            major_version_, minor_version_, big_endian_)) {
+  if (!rt_protocol_.Connect(params_.server_address.c_str(), base_port_,
+                            &udp_port_, major_version_, minor_version_,
+                            big_endian_)) {
     RCLCPP_ERROR(get_logger(), "Failed to connect: %s",
                  rt_protocol_.GetErrorString());
     return false;
@@ -311,9 +315,7 @@ bool Bridge::Connect() {
 }
 
 void Bridge::OnUpdateOdometry() {
-  if (!valid_mocap_stream_) {
-    RCLCPP_ERROR(this->get_logger(),
-                 "Timeout of Mocap data, stopped publishing");
+  if (!params_.ignore_mocap_timeout && !valid_mocap_stream_) {
     return;
   }
 
