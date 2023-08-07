@@ -12,6 +12,7 @@ void Bridge::DeclareParams() {
   DECLARE_PARAM(body_name);
   DECLARE_PARAM(server_address);
   DECLARE_PARAM(latch_timeout);
+  DECLARE_PARAM(ignore_mocap_timeout);
 }
 
 }  // namespace qualisys_bridge

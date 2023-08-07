@@ -3,3 +3,4 @@
     body_name: 'uuv02'
     server_address: '192.168.0.161'
     latch_timeout: false # if true, the node needs to be restarted after mocap timoeut to publish again
+    ignore_mocap_timeout: true
