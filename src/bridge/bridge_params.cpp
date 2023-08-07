@@ -4,8 +4,7 @@ namespace qualisys_bridge {
 
 #define DECLARE_PARAM(x)                  \
   do {                                    \
-    auto &param = params_.x;              \
-    param = declare_parameter(#x, param); \
+    params_.x = declare_parameter<decltype(params_.x)>(#x); \
   } while (false)
 
 void Bridge::DeclareParams() {
