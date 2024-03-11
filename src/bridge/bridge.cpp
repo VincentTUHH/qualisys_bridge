@@ -51,9 +51,6 @@ Bridge::Bridge(rclcpp::NodeOptions const &_options)
   ground_truth_odometry_pub_ = create_publisher<nav_msgs::msg::Odometry>(
       "ground_truth/odometry", rclcpp::SystemDefaultsQoS());
 
-  vehicle_odometry_pub_ = create_publisher<nav_msgs::msg::Odometry>(
-      "odometry", rclcpp::SystemDefaultsQoS());
-
   accel_pub_ = create_publisher<geometry_msgs::msg::Vector3Stamped>(
       "acceleration", rclcpp::SystemDefaultsQoS());
 
@@ -63,42 +60,22 @@ Bridge::Bridge(rclcpp::NodeOptions const &_options)
   naive_accel_pub_ = create_publisher<geometry_msgs::msg::Vector3Stamped>(
       "acceleration_naive", rclcpp::SystemDefaultsQoS());
 
-  visual_odometry_pub_ = create_publisher<px4_msgs::msg::VehicleOdometry>(
-      "fmu/in/vehicle_visual_odometry", px4_qos);
+  if (!params_.ground_truth_only) {
+    visual_odometry_pub_ = create_publisher<px4_msgs::msg::VehicleOdometry>(
+        "fmu/in/vehicle_visual_odometry", px4_qos);
+  }
 
   vehicle_velocity_inertial_debug_pub_ =
       create_publisher<geometry_msgs::msg::Vector3Stamped>(
           "debug/velocity_inertial", rclcpp::SystemDefaultsQoS());
 
-  px4_vehicle_odometry_sub_ =
-      create_subscription<px4_msgs::msg::VehicleOdometry>(
-          "fmu/out/vehicle_odometry", px4_qos,
-          std::bind(&Bridge::OnOdometry, this, std::placeholders::_1));
-
   update_timer_ =
       rclcpp::create_timer(this, get_clock(), std::chrono::milliseconds(5),
                            std::bind(&Bridge::OnUpdate, this));
 
-  vehicle_odom_update_timer_ =
-      rclcpp::create_timer(this, get_clock(), std::chrono::milliseconds(20),
-                           std::bind(&Bridge::OnUpdateOdometry, this));
-
   mocap_timeout_timer_ =
       rclcpp::create_timer(this, get_clock(), std::chrono::milliseconds(500),
                            std::bind(&Bridge::OnMoCapTimeout, this));
-}
-
-void Bridge::OnOdometry(px4_msgs::msg::VehicleOdometry::ConstSharedPtr _msg) {
-  px4_odometry_updated_ = true;
-  for (size_t i = 0; i < 3; ++i) {
-    velocity_px4_(i) = _msg->velocity.at(i);
-    position_px4_(i) = _msg->position.at(i);
-    body_rates_px4_(i) = _msg->angular_velocity.at(i);
-  }
-  orientation_px4_.w() = _msg->q.at(0);
-  orientation_px4_.x() = _msg->q.at(1);
-  orientation_px4_.y() = _msg->q.at(2);
-  orientation_px4_.z() = _msg->q.at(3);
 }
 
 void Bridge::OnMoCapTimeout() {
@@ -172,9 +149,10 @@ void Bridge::HandlePacket(CRTPacket *_packet) {
     hippo_common::convert::EigenToRos(ekf_.GetPosition(), pose.pose.position);
     hippo_common::convert::EigenToRos(ekf_.GetOrientation(),
                                       pose.pose.orientation);
-    // PublishVisualOdometry(pose);
-    PublishVisualOdometry();
-    PublishOdometry();
+    if (!params_.ground_truth_only) {
+      PublishVisualOdometry();
+    }
+    PublishGroundTruthOdometry();
     PublishAcceleration();
     PublishNaive(position_measurement, orientation_measurement, t_packet);
   }
@@ -225,7 +203,7 @@ void Bridge::PublishNaive(const Eigen::Vector3d &_position_measurement,
   naive_accel_pub_->publish(accel_msg);
 }
 
-void Bridge::PublishOdometry() {
+void Bridge::PublishGroundTruthOdometry() {
   nav_msgs::msg::Odometry msg;
   msg.header.stamp = now();
   msg.header.frame_id = hippo_common::tf2_utils::frame_id::InertialFrame();
@@ -312,82 +290,6 @@ bool Bridge::Connect() {
     return false;
   }
   return true;
-}
-
-void Bridge::OnUpdateOdometry() {
-  if (!params_.ignore_mocap_timeout && !valid_mocap_stream_) {
-    return;
-  }
-
-  if (!px4_odometry_updated_) {
-    RCLCPP_ERROR_THROTTLE(
-        get_logger(), *get_clock(), 2000,
-        "No odometry received from px4. Cannot publish odometry.");
-    return;
-  }
-  px4_odometry_updated_ = false;
-
-  rclcpp::Time stamp = now();
-  geometry_msgs::msg::PoseStamped pose;
-  pose.header.stamp = stamp;
-  pose.header.frame_id = hippo_common::tf2_utils::frame_id::InertialFrame();
-  hippo_common::convert::EigenToRos(position_px4_, pose.pose.position);
-  hippo_common::convert::EigenToRos(orientation_px4_, pose.pose.orientation);
-  pose.pose = hippo_common::tf2_utils::PosePx4ToRos(pose.pose);
-
-  // velocity in inertial coordinate system in Ros
-  Eigen::Vector3d velocity_ros = q_ned_enu.inverse() * velocity_px4_;
-  geometry_msgs::msg::Vector3Stamped velocity_inertial_msg;
-  velocity_inertial_msg.header.stamp = stamp;
-  velocity_inertial_msg.header.frame_id =
-      hippo_common::tf2_utils::frame_id::InertialFrame();
-  hippo_common::convert::EigenToRos(velocity_ros, velocity_inertial_msg.vector);
-  vehicle_velocity_inertial_debug_pub_->publish(velocity_inertial_msg);
-
-  // transform velocity from inertial coordinate system in ros to body frame
-  velocity_ros =
-      (q_ned_enu.inverse() * orientation_px4_ * q_flu_frd.inverse()).inverse() *
-      velocity_ros;
-
-  Eigen::Vector3d angular_velocity_ros = q_flu_frd * body_rates_px4_;
-
-  nav_msgs::msg::Odometry odometry;
-  odometry.header.stamp = stamp;
-  odometry.header.frame_id = hippo_common::tf2_utils::frame_id::InertialFrame();
-  odometry.child_frame_id = hippo_common::tf2_utils::frame_id::BaseLink(this);
-  odometry.pose.pose = pose.pose;
-  hippo_common::convert::EigenToRos(velocity_ros, odometry.twist.twist.linear);
-  hippo_common::convert::EigenToRos(angular_velocity_ros,
-                                    odometry.twist.twist.angular);
-  vehicle_odometry_pub_->publish(odometry);
-}
-
-void Bridge::PublishVisualOdometry(
-    const geometry_msgs::msg::PoseStamped _pose) {
-  static int counter = 0;
-
-  counter++;
-  if (counter < 3) {
-    return;
-  }
-  counter = 0;
-  geometry_msgs::msg::Pose px4_pose =
-      hippo_common::tf2_utils::PoseRosToPx4(_pose.pose);
-  px4_msgs::msg::VehicleOdometry visual_odometry;
-  visual_odometry.pose_frame = px4_msgs::msg::VehicleOdometry::POSE_FRAME_NED;
-  visual_odometry.position = {(float)px4_pose.position.x,
-                              (float)px4_pose.position.y,
-                              (float)px4_pose.position.z};
-  visual_odometry.q = {
-      (float)px4_pose.orientation.w, (float)px4_pose.orientation.x,
-      (float)px4_pose.orientation.y, (float)px4_pose.orientation.z};
-  visual_odometry.timestamp = now().nanoseconds() * 1e-3;
-  visual_odometry.timestamp_sample =
-      _pose.header.stamp.nanosec * 1e-3 + _pose.header.stamp.sec * 1e6;
-  visual_odometry.velocity = {NAN, NAN, NAN};
-  visual_odometry.angular_velocity = {NAN, NAN, NAN};
-
-  visual_odometry_pub_->publish(visual_odometry);
 }
 
 void Bridge::PublishVisualOdometry() {

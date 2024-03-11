@@ -22,21 +22,18 @@ class Bridge : public rclcpp::Node {
     std::string server_address;
     bool latch_timeout;
     bool ignore_mocap_timeout;
+    bool ground_truth_only;
   } params_;
   void DeclareParams();
   void OnUpdate();
   bool Connect();
-  void OnUpdateOdometry();
-  void OnOdometry(px4_msgs::msg::VehicleOdometry::ConstSharedPtr _msg);
   void OnMoCapTimeout();
   void HandlePacket(CRTPacket *_packet);
-  void PublishOdometry(const nav_msgs::msg::Odometry &_odometry);
-  void PublishOdometry();
+  void PublishGroundTruthOdometry();
   void PublishNaive(const Eigen::Vector3d &_position_measurement,
                     const Eigen::Quaterniond &_orientation_measurement,
                     double _time);
   void PublishAcceleration();
-  void PublishVisualOdometry(const geometry_msgs::msg::PoseStamped _pose);
   void PublishVisualOdometry();
   nav_msgs::msg::Odometry getEKFOdometryMsg();
 
