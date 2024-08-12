@@ -2,6 +2,11 @@
 Changelog for package qualisys_bridge
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* added missing include
+* Contributors: Thies Lennart Alff
+
 0.0.1 (2024-08-12)
 ------------------
 * streamlined the qualisys bridge. removed px4 bridge
