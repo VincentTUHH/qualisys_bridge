@@ -2,8 +2,8 @@
 Changelog for package qualisys_bridge
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.0.1 (2024-08-12)
+------------------
 * streamlined the qualisys bridge. removed px4 bridge
 * added project settings and format configs
 * set meaningful default node name
