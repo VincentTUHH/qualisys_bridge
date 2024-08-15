@@ -60,7 +60,7 @@ Bridge::Bridge(rclcpp::NodeOptions const &_options)
   naive_accel_pub_ = create_publisher<geometry_msgs::msg::Vector3Stamped>(
       "acceleration_naive", rclcpp::SystemDefaultsQoS());
 
-  if (!params_.ground_truth_only) {
+  if (!params_.publish_visual_odometry) {
     visual_odometry_pub_ = create_publisher<px4_msgs::msg::VehicleOdometry>(
         "fmu/in/vehicle_visual_odometry", px4_qos);
   }
@@ -70,7 +70,7 @@ Bridge::Bridge(rclcpp::NodeOptions const &_options)
           "debug/velocity_inertial", rclcpp::SystemDefaultsQoS());
 
   update_timer_ =
-      rclcpp::create_timer(this, get_clock(), std::chrono::milliseconds(5),
+      rclcpp::create_timer(this, get_clock(), std::chrono::milliseconds(1),
                            std::bind(&Bridge::OnUpdate, this));
 
   mocap_timeout_timer_ =
@@ -82,6 +82,9 @@ void Bridge::OnMoCapTimeout() {
   valid_mocap_stream_ = false;
   RCLCPP_ERROR(this->get_logger(),
                "Timeout for MoCap data, stop publishing states");
+  // we can stop the timer since we already recognized the timeout.
+  // It will be reset as soon as new valid data arrives.
+  mocap_timeout_timer_->cancel();
 }
 
 void Bridge::HandlePacket(CRTPacket *_packet) {
@@ -114,6 +117,7 @@ void Bridge::HandlePacket(CRTPacket *_packet) {
     for (int j = 0; j < 9; ++j) {
       if (std::isnan(R[j])) {
         matrix_nan = true;
+        break;
       }
     }
     if (std::isnan(x) || std::isnan(y) || std::isnan(z) || matrix_nan) {
@@ -127,6 +131,13 @@ void Bridge::HandlePacket(CRTPacket *_packet) {
     // only set set to true if we do not latch the timeout state. if latched, we
     // should not recover from a timeout state.
     valid_mocap_stream_ = params_.latch_timeout ? valid_mocap_stream_ : true;
+    if (!valid_mocap_stream_) {
+      // obviously we got new data from the mocap data. but it if we are here,
+      // it has timed out before and we do not allow the timeout state
+      // to reset, since latch_timeout is true.
+      // Hence, we cancel all further processing/publishing.
+      continue;
+    }
     lost_counter = 0;
     Eigen::Matrix<float, 3, 3, Eigen::ColMajor> R_mat(R);
     Eigen::Quaterniond orientation_measurement{R_mat.cast<double>()};
@@ -149,7 +160,7 @@ void Bridge::HandlePacket(CRTPacket *_packet) {
     hippo_common::convert::EigenToRos(ekf_.GetPosition(), pose.pose.position);
     hippo_common::convert::EigenToRos(ekf_.GetOrientation(),
                                       pose.pose.orientation);
-    if (!params_.ground_truth_only) {
+    if (params_.publish_visual_odometry) {
       PublishVisualOdometry();
     }
     PublishGroundTruthOdometry();
@@ -261,6 +272,7 @@ void Bridge::OnUpdate() {
   }
 
   if (!stream_frames_) {
+    // read with the full framerate configured in qtm.
     if (!rt_protocol_.StreamFrames(CRTProtocol::RateAllFrames, 0, udp_port_,
                                    NULL, CRTProtocol::cComponent6d)) {
       RCLCPP_WARN(get_logger(), "rtProtocol.StreamFrames: %s\n\n",

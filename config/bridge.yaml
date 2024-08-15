@@ -3,5 +3,4 @@
     body_name: 'uuv02'
     server_address: '192.168.0.181'
     latch_timeout: false # if true, the node needs to be restarted after mocap timoeut to publish again
-    ignore_mocap_timeout: true
-    ground_truth_only: false
+    publish_visual_odometry: false # if true, we publish the px4/FCU visual odometry topic

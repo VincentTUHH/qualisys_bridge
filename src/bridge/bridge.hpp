@@ -21,8 +21,7 @@ class Bridge : public rclcpp::Node {
     std::string body_name;
     std::string server_address;
     bool latch_timeout;
-    bool ignore_mocap_timeout;
-    bool ground_truth_only;
+    bool publish_visual_odometry;
   } params_;
   void DeclareParams();
   void OnUpdate();
