@@ -2,8 +2,8 @@
 Changelog for package qualisys_bridge
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+1.0.2 (2024-08-15)
+------------------
 * fixed regression caused by inversed parameter logic
 * Contributors: Thies Lennart Alff
 
