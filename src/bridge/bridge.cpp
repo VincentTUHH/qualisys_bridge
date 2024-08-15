@@ -60,7 +60,7 @@ Bridge::Bridge(rclcpp::NodeOptions const &_options)
   naive_accel_pub_ = create_publisher<geometry_msgs::msg::Vector3Stamped>(
       "acceleration_naive", rclcpp::SystemDefaultsQoS());
 
-  if (!params_.publish_visual_odometry) {
+  if (params_.publish_visual_odometry) {
     visual_odometry_pub_ = create_publisher<px4_msgs::msg::VehicleOdometry>(
         "fmu/in/vehicle_visual_odometry", px4_qos);
   }
