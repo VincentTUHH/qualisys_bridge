@@ -2,8 +2,8 @@
 Changelog for package qualisys_bridge
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+1.0.1 (2024-08-15)
+------------------
 * removed unused param. also renamed another to make intent more clear
 * Contributors: Thies Lennart Alff
 
