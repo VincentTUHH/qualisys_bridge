@@ -104,69 +104,69 @@ void Bridge::HandlePacket(CRTPacket *_packet) {
     return;
   }
   t_prev_frame_qtm = t_packet;
-  for (unsigned int i = 0; i < _packet->Get6DOFBodyCount(); ++i) {
-    std::string name{rt_protocol_.Get6DOFBodyName(i)};
-    if (name != params_.body_name) {
-      continue;
-    }
-    if (!_packet->Get6DOFBody(i, x, y, z, R)) {
-      RCLCPP_WARN(get_logger(), "Failed to retrieve 6DOF data.");
-      continue;
-    }
-    bool matrix_nan{false};
-    for (int j = 0; j < 9; ++j) {
-      if (std::isnan(R[j])) {
-        matrix_nan = true;
-        break;
-      }
-    }
-    if (std::isnan(x) || std::isnan(y) || std::isnan(z) || matrix_nan) {
-      lost_counter++;
-      if (lost_counter >= 50) {
-        ekf_.Reset();
-      }
-      continue;
-    }
-    mocap_timeout_timer_->reset();
-    // only set set to true if we do not latch the timeout state. if latched, we
-    // should not recover from a timeout state.
-    valid_mocap_stream_ = params_.latch_timeout ? valid_mocap_stream_ : true;
-    if (!valid_mocap_stream_) {
-      // obviously we got new data from the mocap data. but it if we are here,
-      // it has timed out before and we do not allow the timeout state
-      // to reset, since latch_timeout is true.
-      // Hence, we cancel all further processing/publishing.
-      continue;
-    }
-    lost_counter = 0;
-    Eigen::Matrix<float, 3, 3, Eigen::ColMajor> R_mat(R);
-    Eigen::Quaterniond orientation_measurement{R_mat.cast<double>()};
-    Eigen::Vector3d position_measurement{x / 1000.0, y / 1000.0, z / 1000.0};
-    position_measurement += Eigen::Vector3d{0.0, 0.0, 0.0};
 
-    double time = t_start_frame_ros_ + (t_packet - t_start_frame_qtm_);
-
-    if (!ekf_.IsReady()) {
-      ekf_.SetInitialCondition(time, orientation_measurement,
-                               position_measurement);
-      continue;
-    }
-    ekf_.Predict(time);
-    ekf_.Update(orientation_measurement, position_measurement);
-
-    geometry_msgs::msg::PoseStamped pose;
-    pose.header.stamp = now();
-    pose.header.frame_id = hippo_common::tf2_utils::frame_id::InertialFrame();
-    hippo_common::convert::EigenToRos(ekf_.GetPosition(), pose.pose.position);
-    hippo_common::convert::EigenToRos(ekf_.GetOrientation(),
-                                      pose.pose.orientation);
-    if (params_.publish_visual_odometry) {
-      PublishVisualOdometry();
-    }
-    PublishGroundTruthOdometry();
-    PublishAcceleration();
-    PublishNaive(position_measurement, orientation_measurement, t_packet);
+  if (body_index_ < 0) {
+    RCLCPP_WARN_ONCE(get_logger(),
+                     "Node is inactive because the body name was not found.");
+    return;
   }
+  if (!_packet->Get6DOFBody(body_index_, x, y, z, R)) {
+    RCLCPP_WARN(get_logger(), "Failed to retrieve 6DOF data.");
+    return;
+  }
+  bool matrix_nan{false};
+  for (int j = 0; j < 9; ++j) {
+    if (std::isnan(R[j])) {
+      matrix_nan = true;
+      break;
+    }
+  }
+  if (std::isnan(x) || std::isnan(y) || std::isnan(z) || matrix_nan) {
+    lost_counter++;
+    if (lost_counter >= 50) {
+      ekf_.Reset();
+    }
+    return;
+  }
+  mocap_timeout_timer_->reset();
+  // only set set to true if we do not latch the timeout state. if latched, we
+  // should not recover from a timeout state.
+  valid_mocap_stream_ = params_.latch_timeout ? valid_mocap_stream_ : true;
+  if (!valid_mocap_stream_) {
+    // obviously we got new data from the mocap data. but it if we are here,
+    // it has timed out before and we do not allow the timeout state
+    // to reset, since latch_timeout is true.
+    // Hence, we cancel all further processing/publishing.
+    return;
+  }
+  lost_counter = 0;
+  Eigen::Matrix<float, 3, 3, Eigen::ColMajor> R_mat(R);
+  Eigen::Quaterniond orientation_measurement{R_mat.cast<double>()};
+  Eigen::Vector3d position_measurement{x / 1000.0, y / 1000.0, z / 1000.0};
+  position_measurement += Eigen::Vector3d{0.0, 0.0, 0.0};
+
+  double time = t_start_frame_ros_ + (t_packet - t_start_frame_qtm_);
+
+  if (!ekf_.IsReady()) {
+    ekf_.SetInitialCondition(time, orientation_measurement,
+                             position_measurement);
+    return;
+  }
+  ekf_.Predict(time);
+  ekf_.Update(orientation_measurement, position_measurement);
+
+  geometry_msgs::msg::PoseStamped pose;
+  pose.header.stamp = now();
+  pose.header.frame_id = hippo_common::tf2_utils::frame_id::InertialFrame();
+  hippo_common::convert::EigenToRos(ekf_.GetPosition(), pose.pose.position);
+  hippo_common::convert::EigenToRos(ekf_.GetOrientation(),
+                                    pose.pose.orientation);
+  if (params_.publish_visual_odometry) {
+    PublishVisualOdometry();
+  }
+  PublishGroundTruthOdometry();
+  PublishAcceleration();
+  PublishNaive(position_measurement, orientation_measurement, t_packet);
 }
 
 void Bridge::PublishNaive(const Eigen::Vector3d &_position_measurement,
@@ -268,6 +268,28 @@ void Bridge::OnUpdate() {
       RCLCPP_WARN(get_logger(), "rtProtocol.StreamFrames: %s\n\n",
                   rt_protocol_.GetErrorString());
       return;
+    }
+    for (unsigned int i = 0; i < rt_protocol_.Get6DOFBodyCount(); ++i) {
+      std::string name{rt_protocol_.Get6DOFBodyName(i)};
+      if (name == params_.body_name) {
+        body_index_ = i;
+        std::vector<CRTProtocol::SSettings6DOFBody> body_settings;
+        rt_protocol_.Get6DOFBodySettings(body_settings);
+        auto &setting = body_settings.at(body_index_);
+        if (!setting.enabled) {
+          RCLCPP_WARN(get_logger(),
+                      "Found body <%s> in settings but is not enabled! Please "
+                      "enable in QTM settings.",
+                      name.c_str());
+        }
+        break;
+      }
+    }
+    if (body_index_ < 0) {
+      RCLCPP_ERROR(
+          get_logger(),
+          "No rigid body with name <%s> found. Make sure it exists in QTM.",
+          params_.body_name.c_str());
     }
   }
 

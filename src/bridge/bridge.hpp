@@ -55,10 +55,9 @@ class Bridge : public rclcpp::Node {
   rclcpp::TimerBase::SharedPtr mocap_timeout_timer_;
   CRTProtocol rt_protocol_;
 
-  std::string server_address_{"192.168.0.161"};
   unsigned short base_port_{22222};
   int major_version_{1};
-  int minor_version_{19};
+  int minor_version_{24};
   bool big_endian_{false};
   unsigned short udp_port_{6734};
   bool data_available_{false};
@@ -68,6 +67,7 @@ class Bridge : public rclcpp::Node {
   Ekf::Matrix6d measurement_noise_;
   double t_start_frame_ros_{0.0};
   double t_start_frame_qtm_{0.0};
+  int body_index_{-1};
 
   Eigen::Vector3d position_px4_;
   Eigen::Quaterniond orientation_px4_;
