@@ -25,7 +25,7 @@ class Bridge : public rclcpp::Node {
   } params_;
   void DeclareParams();
   void OnUpdate();
-  bool Connect();
+  bool Connect(unsigned short n_tries = 100);
   void OnMoCapTimeout();
   void HandlePacket(CRTPacket *_packet);
   void PublishGroundTruthOdometry();

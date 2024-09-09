@@ -293,14 +293,21 @@ void Bridge::OnUpdate() {
   }
 }
 
-bool Bridge::Connect() {
-  if (!rt_protocol_.Connect(params_.server_address.c_str(), base_port_,
-                            &udp_port_, major_version_, minor_version_,
-                            big_endian_)) {
-    RCLCPP_ERROR(get_logger(), "Failed to connect: %s",
-                 rt_protocol_.GetErrorString());
-    return false;
+bool Bridge::Connect(unsigned short n_tries) {
+  for (int i = 0; i < n_tries; ++i) {
+    unsigned short client_port = udp_port_ + i;
+    RCLCPP_INFO(get_logger(), "Trying to connect with client UDP port: %hu",
+                client_port);
+    if (rt_protocol_.Connect(params_.server_address.c_str(), base_port_,
+                             &client_port, major_version_, minor_version_,
+                             big_endian_)) {
+      RCLCPP_INFO(get_logger(), "Connected with client UDP port: %hu",
+                  client_port);
+      return true;
+    }
   }
+  RCLCPP_ERROR(get_logger(), "Failed to connect after %hu tries: %s", n_tries,
+               rt_protocol_.GetErrorString());
   return true;
 }
 
