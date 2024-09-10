@@ -2,8 +2,8 @@
 Changelog for package qualisys_bridge
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+1.0.4 (2024-09-10)
+------------------
 * refactored reading the qtm config
 * Contributors: Thies Lennart Alff
 
