@@ -2,8 +2,8 @@
 Changelog for package qualisys_bridge
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+1.0.3 (2024-09-10)
+------------------
 * added missing process noise entries
 * removed now erroneous namespace from launch file
 * updated formmating
