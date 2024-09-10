@@ -2,6 +2,11 @@
 Changelog for package qualisys_bridge
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* refactored reading the qtm config
+* Contributors: Thies Lennart Alff
+
 1.0.3 (2024-09-10)
 ------------------
 * added missing process noise entries
