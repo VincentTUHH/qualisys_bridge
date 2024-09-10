@@ -18,6 +18,8 @@ void Body::InitEKF() {
   process_noise.topLeftCorner<6, 6>() = 0.5 * Ekf::Matrix6d::Identity() *
                                         kFrameInterval * kFrameInterval *
                                         kMaxAcceleration;
+  process_noise.block<6, 6>(6, 6) =
+      Ekf::Matrix6d::Identity() * kFrameInterval * kMaxAcceleration;
   process_noise.bottomRightCorner<3, 3>() =
       10.0 * Eigen::Matrix3d::Identity() * kFrameInterval * kMaxAcceleration;
   process_noise *= process_noise;
