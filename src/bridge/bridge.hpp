@@ -24,6 +24,7 @@ class Bridge : public rclcpp::Node {
   void DeclareParams();
   void OnUpdate();
   bool Connect();
+  bool CheckQTMConfig();
   void HandlePacket(CRTPacket *_packet);
   nav_msgs::msg::Odometry getEKFOdometryMsg();
 

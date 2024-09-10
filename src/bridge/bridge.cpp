@@ -91,6 +91,27 @@ void Bridge::HandlePacket(CRTPacket *_packet) {
   }
 }
 
+bool Bridge::CheckQTMConfig() {
+  if (rt_protocol_.Read6DOFSettings(data_available_)) {
+    RCLCPP_WARN(get_logger(), "Could not read QTM Config: %s",
+                rt_protocol_.GetErrorString());
+    return false;
+  }
+  std::set<std::string> qtm_existing_bodies;
+  for (unsigned int i = 0; i < rt_protocol_.Get6DOFBodyCount(); ++i) {
+    qtm_existing_bodies.insert(rt_protocol_.Get6DOFBodyName(i));
+  }
+  for (const auto &requested_body : params_.qtm_body_names) {
+    if (!qtm_existing_bodies.count(requested_body)) {
+      RCLCPP_WARN(
+          get_logger(),
+          "Rigid body with name <%s> requested but does not exist in QTM.",
+          requested_body.c_str());
+    }
+  }
+  return true;
+}
+
 void Bridge::OnUpdate() {
   if (!rt_protocol_.Connected()) {
     RCLCPP_INFO(get_logger(), "Trying to connect.");
@@ -100,9 +121,7 @@ void Bridge::OnUpdate() {
     RCLCPP_INFO(get_logger(), "Connected.");
   }
   if (!data_available_) {
-    if (!rt_protocol_.Read6DOFSettings(data_available_)) {
-      RCLCPP_WARN(get_logger(), "rtProtocol.StreamFrames: %s\n\n",
-                  rt_protocol_.GetErrorString());
+    if (!CheckQTMConfig()) {
       return;
     }
   }
