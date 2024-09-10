@@ -8,8 +8,8 @@ namespace qualisys_bridge {
   } while (false)
 
 void Bridge::DeclareParams() {
-  std::string name;
-  DECLARE_PARAM(body_name);
+  DECLARE_PARAM(qtm_body_names);
+  DECLARE_PARAM(ros_body_names);
   DECLARE_PARAM(server_address);
   DECLARE_PARAM(latch_timeout);
   DECLARE_PARAM(publish_visual_odometry);

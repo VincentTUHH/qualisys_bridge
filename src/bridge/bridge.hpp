@@ -3,12 +3,9 @@
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
 
-#include <geometry_msgs/msg/pose_stamped.hpp>
-#include <geometry_msgs/msg/vector3_stamped.hpp>
-#include <nav_msgs/msg/odometry.hpp>
-#include <px4_msgs/msg/vehicle_odometry.hpp>
 #include <rclcpp/rclcpp.hpp>
 
+#include "body.hpp"
 #include "qualisys_bridge/ekf.hpp"
 
 namespace qualisys_bridge {
@@ -18,41 +15,22 @@ class Bridge : public rclcpp::Node {
 
  private:
   struct Params {
-    std::string body_name;
     std::string server_address;
-    bool latch_timeout;
-    bool publish_visual_odometry;
+    std::vector<std::string> qtm_body_names;
+    std::vector<std::string> ros_body_names;
+    std::vector<bool> latch_timeout;
+    std::vector<bool> publish_visual_odometry;
   } params_;
   void DeclareParams();
   void OnUpdate();
   bool Connect();
-  void OnMoCapTimeout();
   void HandlePacket(CRTPacket *_packet);
-  void PublishGroundTruthOdometry();
-  void PublishNaive(const Eigen::Vector3d &_position_measurement,
-                    const Eigen::Quaterniond &_orientation_measurement,
-                    double _time);
-  void PublishAcceleration();
-  void PublishVisualOdometry();
   nav_msgs::msg::Odometry getEKFOdometryMsg();
 
-  rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr
-      ground_truth_odometry_pub_;
-  rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr vehicle_odometry_pub_;
-  rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr naive_odometry_pub_;
-  rclcpp::Publisher<geometry_msgs::msg::Vector3Stamped>::SharedPtr
-      naive_accel_pub_;
-  rclcpp::Publisher<geometry_msgs::msg::Vector3Stamped>::SharedPtr accel_pub_;
-  rclcpp::Publisher<px4_msgs::msg::VehicleOdometry>::SharedPtr
-      visual_odometry_pub_;
-  rclcpp::Publisher<geometry_msgs::msg::Vector3Stamped>::SharedPtr
-      vehicle_velocity_inertial_debug_pub_;
+  std::unordered_map<std::string, std::unique_ptr<Body>> bodies_;
 
-  rclcpp::Subscription<px4_msgs::msg::VehicleOdometry>::SharedPtr
-      px4_vehicle_odometry_sub_;
   rclcpp::TimerBase::SharedPtr update_timer_;
   rclcpp::TimerBase::SharedPtr vehicle_odom_update_timer_;
-  rclcpp::TimerBase::SharedPtr mocap_timeout_timer_;
   CRTProtocol rt_protocol_;
 
   std::string server_address_{"192.168.0.161"};
@@ -63,9 +41,6 @@ class Bridge : public rclcpp::Node {
   unsigned short udp_port_{6734};
   bool data_available_{false};
   bool stream_frames_{false};
-  Ekf ekf_;
-  Ekf::Matrix15d process_noise_;
-  Ekf::Matrix6d measurement_noise_;
   double t_start_frame_ros_{0.0};
   double t_start_frame_qtm_{0.0};
 

@@ -48,6 +48,7 @@ set(component_name bridge)
 add_library(${component_name}
   SHARED
   src/bridge/bridge.cpp
+  src/bridge/body.cpp
   src/bridge/bridge_params.cpp
   src/ekf.cpp
 )
