@@ -2,6 +2,20 @@
 Changelog for package qualisys_bridge
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* added missing process noise entries
+* removed now erroneous namespace from launch file
+* updated formmating
+* major rework to handle multiple bodies in a single bridge
+* revert commits related with a single body per node approach.
+  QTM seems to not support multiple udp clients properly (not thoroughly
+  verified though). Hence multiple/all bodies have to be handled inside a
+  single node
+* check body name only once in the beginning. bumped requested protocol version
+* try several udp ports before giving up
+* Contributors: Thies Lennart Alff
+
 1.0.2 (2024-08-15)
 ------------------
 * fixed regression caused by inversed parameter logic
