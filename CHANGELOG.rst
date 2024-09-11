@@ -2,8 +2,8 @@
 Changelog for package qualisys_bridge
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+1.0.5 (2024-09-11)
+------------------
 * actually use the ros parameters
 * Contributors: Thies Lennart Alff
 
