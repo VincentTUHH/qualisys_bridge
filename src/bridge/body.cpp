@@ -31,7 +31,6 @@ void Body::InitEKF() {
 }
 
 void Body::DestroyPublishers() {
-  pubs_.odometry.reset();
   pubs_.naive_odometry.reset();
   pubs_.naive_accel.reset();
   pubs_.accel.reset();

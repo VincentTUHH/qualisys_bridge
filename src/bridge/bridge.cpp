@@ -26,8 +26,6 @@ static const Eigen::Quaterniond q_flu_frd{
 namespace qualisys_bridge {
 Bridge::Bridge(rclcpp::NodeOptions const &_options) : Node("mocap", _options) {
   DeclareParams();
-  tf_buffer_ = std::make_unique<tf2_ros::Buffer>(get_clock());
-  tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 
   update_timer_ =
       rclcpp::create_timer(this, get_clock(), std::chrono::milliseconds(1),
@@ -38,13 +36,23 @@ Bridge::Bridge(rclcpp::NodeOptions const &_options) : Node("mocap", _options) {
                  "qtm_body_names and ros_body_names parameters have to have "
                  "the same length! Node will be inactive.");
     update_timer_->cancel();
-    tf_listener_ = nullptr;
+    return;
+  }
+  if ((params_.qtm_body_names.size() != params_.latch_timeout.size()) ||
+      (params_.qtm_body_names.size() !=
+       params_.publish_visual_odometry.size())) {
+    RCLCPP_FATAL(get_logger(),
+                 "All array parameters must have the same length! Node will be "
+                 "inactive");
+    update_timer_->cancel();
     return;
   }
   for (std::size_t i = 0; i < params_.qtm_body_names.size(); ++i) {
     std::string qtm_name = params_.qtm_body_names.at(i);
     std::string ros_name = params_.ros_body_names.at(i);
     bodies_[qtm_name] = std::make_unique<Body>(*this, qtm_name, ros_name);
+    bodies_[qtm_name]->LatchTimeout(params_.latch_timeout.at(i));
+    bodies_[qtm_name]->PublishToFMU(params_.publish_visual_odometry.at(i));
   }
 }
 

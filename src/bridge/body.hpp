@@ -10,7 +10,6 @@ class Body {
  public:
   struct Publishers {
     rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr ground_truth_odometry;
-    rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odometry;
     rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr naive_odometry;
     rclcpp::Publisher<geometry_msgs::msg::Vector3Stamped>::SharedPtr
         naive_accel;
@@ -32,6 +31,8 @@ class Body {
   void SetQTMBodyName(std::string name) { qtm_body_name_ = name; }
   void SetROSBodyName(std::string name) { ros_body_name_ = name; }
   void Update(Eigen::Quaterniond &orientation, Eigen::Vector3d &position);
+  void LatchTimeout(bool enable) { latch_timeout_ = enable; }
+  void PublishToFMU(bool enable) { publish_visual_odometry_ = enable; }
 
  private:
   void Init(std::string qtm_body_name, std::string ros_body_name) {

@@ -6,4 +6,4 @@
     # if true, the node needs to be restarted after mocap timoeut to publish again
     latch_timeout: [false, false, false, false]
     # if true, we publish the px4/FCU visual odometry topic
-    publish_visual_odometry: [false, false, false, false]
+    publish_visual_odometry: [true, true, true, true]
