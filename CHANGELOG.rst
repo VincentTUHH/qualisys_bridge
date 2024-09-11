@@ -2,6 +2,11 @@
 Changelog for package qualisys_bridge
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* actually use the ros parameters
+* Contributors: Thies Lennart Alff
+
 1.0.4 (2024-09-10)
 ------------------
 * refactored reading the qtm config
