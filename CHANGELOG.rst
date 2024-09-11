@@ -2,6 +2,11 @@
 Changelog for package qualisys_bridge
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* fixed typo causing wrong topic names
+* Contributors: Thies Lennart Alff
+
 1.0.5 (2024-09-11)
 ------------------
 * actually use the ros parameters
