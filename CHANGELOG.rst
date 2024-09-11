@@ -2,8 +2,8 @@
 Changelog for package qualisys_bridge
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+1.0.6 (2024-09-11)
+------------------
 * fixed typo causing wrong topic names
 * Contributors: Thies Lennart Alff
 
