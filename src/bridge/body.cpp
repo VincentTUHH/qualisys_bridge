@@ -62,7 +62,7 @@ void Body::CreatePublishers() {
   px4_qos.durability(rclcpp::DurabilityPolicy::TransientLocal);
   px4_qos.history(rclcpp::HistoryPolicy::KeepLast);
 
-  topic = ros_body_name_ = "/fmu/in/vehicle_visual_odometry";
+  topic = ros_body_name_ + "/fmu/in/vehicle_visual_odometry";
   pubs_.px4_vehicle_odometry =
       node_.create_publisher<VehicleOdometry>(topic, px4_qos);
 }
