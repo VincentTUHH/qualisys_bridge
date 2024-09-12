@@ -5,7 +5,7 @@
 
 namespace qualisys_bridge {
 
-static constexpr double kMaxAcceleration = 10.0;
+static constexpr double kMaxAcceleration = 100.0;
 static constexpr double kFrameInterval = 0.01;
 static constexpr double kPi = 3.141592653589793238463;
 static const Eigen::Quaterniond q_ned_enu{
@@ -15,6 +15,7 @@ static const Eigen::Quaterniond q_flu_frd{
 
 void Body::InitEKF() {
   Ekf::Matrix15d process_noise;
+  process_noise.setZero();
   process_noise.topLeftCorner<6, 6>() = 0.5 * Ekf::Matrix6d::Identity() *
                                         kFrameInterval * kFrameInterval *
                                         kMaxAcceleration;
@@ -25,6 +26,7 @@ void Body::InitEKF() {
   process_noise *= process_noise;
 
   Ekf::Matrix6d measurement_noise;
+  measurement_noise.setZero();
   measurement_noise = Ekf::Matrix6d::Identity() * 5e-3;
   measurement_noise *= measurement_noise;
   ekf_.Init(process_noise, measurement_noise, 100);
