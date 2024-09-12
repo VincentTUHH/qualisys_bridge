@@ -20,6 +20,8 @@ def add_node(launch_description: LaunchDescription):
         executable='bridge_node',
         name='qualisys',
         parameters=[LaunchConfiguration('bridge_config_file')],
+        output='screen',
+        emulate_tty=True,
     )
     launch_description.add_action(action)
 
