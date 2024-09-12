@@ -2,8 +2,8 @@
 Changelog for package qualisys_bridge
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+1.0.7 (2024-09-12)
+------------------
 * increasted max accel
 * Contributors: Thies Lennart Alff
 
