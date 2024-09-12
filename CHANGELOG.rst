@@ -2,8 +2,8 @@
 Changelog for package qualisys_bridge
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+1.0.8 (2024-09-12)
+------------------
 * better logging
 * Contributors: Thies Lennart Alff
 
