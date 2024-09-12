@@ -2,6 +2,11 @@
 Changelog for package qualisys_bridge
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* increasted max accel
+* Contributors: Thies Lennart Alff
+
 1.0.6 (2024-09-11)
 ------------------
 * fixed typo causing wrong topic names
