@@ -22,6 +22,7 @@ def add_node(launch_description: LaunchDescription):
         parameters=[LaunchConfiguration('bridge_config_file')],
         output='screen',
         emulate_tty=True,
+        # remappings=[('klopsi00/ground_truth/odometry', 'klopsi00/odometry'),],
     )
     launch_description.add_action(action)
 

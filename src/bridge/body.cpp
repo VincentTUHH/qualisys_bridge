@@ -222,11 +222,16 @@ void Body::PublishGroundTruthOdometry() {
   msg.header.stamp = node_.now();
   msg.header.frame_id = hippo_common::tf2_utils::frame_id::InertialFrame();
   msg.child_frame_id = "base_link";
+  // position, orientation and velocity from ekf are in inertial frame
+  // Want: position and orientation published in inertial frame according to ROS standard
+  // Want: velocity published in body frame according to ROS standard
   hippo_common::convert::EigenToRos(ekf_.GetPosition(), msg.pose.pose.position);
   hippo_common::convert::EigenToRos(ekf_.GetOrientation(),
                                     msg.pose.pose.orientation);
-  hippo_common::convert::EigenToRos(ekf_.GetLinearVelocity(),
+  hippo_common::convert::EigenToRos(ekf_.GetOrientation().inverse() * ekf_.GetLinearVelocity(),
                                     msg.twist.twist.linear);
+  // angular velocity in body frame from ekf
+  // Want: ground truth angular velocity published in body frame
   hippo_common::convert::EigenToRos(
       ekf_.GetOrientation().inverse() * ekf_.GetAngularVelocity(),
       msg.twist.twist.angular);
