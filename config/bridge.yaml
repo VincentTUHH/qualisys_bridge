@@ -1,9 +1,9 @@
 /**: # wildcard for the node name
   ros__parameters:
-    qtm_body_names: ['uuv02', 'uuv03', 'bluerov00', 'bluerov01']
-    ros_body_names: ['uuv02', 'uuv03', 'bluerov00', 'bluerov01']
-    server_address: '192.168.0.181'
+    qtm_body_names: ['UVMS']
+    ros_body_names: ['klopsi00']
+    server_address: '192.168.0.166'
     # if true, the node needs to be restarted after mocap timoeut to publish again
-    latch_timeout: [false, false, false, false]
+    latch_timeout: [false]
     # if true, we publish the px4/FCU visual odometry topic
-    publish_visual_odometry: [true, true, true, true]
+    publish_visual_odometry: [true]
